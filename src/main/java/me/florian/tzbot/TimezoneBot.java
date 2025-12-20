@@ -21,6 +21,7 @@ import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 
 public class TimezoneBot {
@@ -63,13 +64,14 @@ public class TimezoneBot {
             return Mono.empty();
         }
 
-        Parser parser = new Parser(TimeZone.getTimeZone(userTimezone));
+        final TimeZone timeZone = TimeZone.getTimeZone(userTimezone);
+        final Parser parser = new Parser(timeZone);
         final List<DateGroup> groups = parser.parse(content);
 
         if (!groups.isEmpty()) {
             final MessageChannel channel = message.getChannel().block();
 
-            StringBuilder messageBuilder = new StringBuilder();
+            StringBuilder messageBuilder = new StringBuilder(String.format("Converting from %s:%n", timeZone.getDisplayName(Locale.ENGLISH)));
 
             for (DateGroup group : groups) {
                 String text = group.getText();
