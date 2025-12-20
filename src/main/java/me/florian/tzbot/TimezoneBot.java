@@ -2,15 +2,13 @@ package me.florian.tzbot;
 
 import com.novamaday.d4j.gradle.simplebot.GlobalCommandRegistrar;
 import discord4j.core.DiscordClient;
-import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.interaction.ChatInputAutoCompleteEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.discordjson.json.MessageReferenceData;
-import discord4j.discordjson.json.gateway.MessageCreate;
-import me.florian.tzbot.commands.SlashCommandHandler;
+import discord4j.rest.util.AllowedMentions;
 import me.florian.tzbot.commands.SlashCommandListener;
 import org.natty.DateGroup;
 import org.natty.Parser;
@@ -80,7 +78,9 @@ public class TimezoneBot {
                 messageBuilder.append(String.format("%s -> <t:%d:t>%n", text, date.getTime() / 1000));
             }
 
-            return channel.createMessage(messageBuilder.toString().trim()).withMessageReference(MessageReferenceData.builder().messageId(message.getId().asLong()).build());
+            return channel.createMessage(messageBuilder.toString().trim())
+                    .withMessageReference(MessageReferenceData.builder().messageId(message.getId().asLong()).build())
+                    .withAllowedMentions(AllowedMentions.suppressAll());
         } else {
             return Mono.<Void>empty();
         }
