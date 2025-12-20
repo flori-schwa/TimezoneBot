@@ -59,6 +59,10 @@ public class TimezoneBot {
             return Mono.empty();
         }
 
+        if (userTimezone == null) {
+            return Mono.empty();
+        }
+
         Parser parser = new Parser(TimeZone.getTimeZone(userTimezone));
         final List<DateGroup> groups = parser.parse(content);
 
