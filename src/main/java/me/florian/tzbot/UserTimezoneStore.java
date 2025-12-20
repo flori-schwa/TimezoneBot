@@ -1,24 +1,16 @@
 package me.florian.tzbot;
 
+import me.florian.tzbot.util.Cache;
+
 import java.sql.*;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.locks.StampedLock;
 
-public class UserTimezoneStore {
+public final class UserTimezoneStore {
 
-    private static final StampedLock LOCK = new StampedLock();
+    private static final StampedLock DB_LOCK = new StampedLock();
 
-    private static final Map<Long, ZoneId> CACHE = new LinkedHashMap<>() {
-        private static final int MAX_ENTRIES = 1_000_000;
-
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<Long, ZoneId> eldest) {
-            return size() > MAX_ENTRIES;
-        }
-    };
+    private static final Cache<Long, ZoneId> CACHE = new Cache<>(1_000_000);
 
     private UserTimezoneStore() {
 
@@ -29,7 +21,7 @@ public class UserTimezoneStore {
     }
 
     public static void init() throws SQLException {
-        final long writeLock = LOCK.writeLock();
+        final long writeLock = DB_LOCK.writeLock();
 
         try (
                 Connection connection = connect();
@@ -37,51 +29,37 @@ public class UserTimezoneStore {
         ) {
             statement.executeUpdate("create table if not exists timezones(userid integer primary key, timezone text)");
         } finally {
-            LOCK.unlockWrite(writeLock);
+            DB_LOCK.unlockWrite(writeLock);
         }
     }
 
     public static ZoneId getUserZoneId(long userId) throws SQLException {
-        long lock = LOCK.readLock();
+        return CACHE.computeIfAbsent(userId, UserTimezoneStore::readUserZoneIdFromDb);
+    }
 
-        try {
-            if (CACHE.containsKey(userId)) {
-                return CACHE.get(userId);
-            }
+    private static ZoneId readUserZoneIdFromDb(long userId) throws SQLException {
+        long lock = DB_LOCK.readLock();
 
-            long writeLock = LOCK.tryConvertToWriteLock(lock);
+        try (
+                Connection connection = connect();
+                PreparedStatement statement = connection.prepareStatement("select timezone from timezones where userid = ?");
+        ) {
+            statement.setLong(1, userId);
 
-            if (writeLock != 0) {
-                lock = writeLock;
+            ResultSet resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                return ZoneId.of(resultSet.getString("timezone"));
             } else {
-                LOCK.unlockRead(lock);
-                lock = LOCK.writeLock();
-            }
-
-            try (
-                    Connection connection = connect();
-                    PreparedStatement statement = connection.prepareStatement("select timezone from timezones where userid = ?");
-            ) {
-                statement.setLong(1, userId);
-
-                ResultSet resultSet = statement.executeQuery();
-
-                if (resultSet.next()) {
-                    final ZoneId zoneId = ZoneId.of(resultSet.getString("timezone"));
-                    CACHE.put(userId, zoneId);
-                    return zoneId;
-                } else {
-                    CACHE.put(userId, null);
-                    return null;
-                }
+                return null;
             }
         } finally {
-            LOCK.unlock(lock);
+            DB_LOCK.unlockRead(lock);
         }
     }
 
     public static boolean saveUserTimezone(long userId, ZoneId zoneId) throws SQLException {
-        final long writeLock = LOCK.writeLock();
+        final long writeLock = DB_LOCK.writeLock();
 
         CACHE.put(userId, zoneId);
 
@@ -100,7 +78,7 @@ public class UserTimezoneStore {
                 }
             }
         } finally {
-            LOCK.unlock(writeLock);
+            DB_LOCK.unlockWrite(writeLock);
         }
     }
 
