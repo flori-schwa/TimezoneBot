@@ -1,0 +1,13 @@
+{
+  "name": "settimezone",
+  "description": "Set your local time zone.",
+  "options": [
+    {
+      "name": "timezone",
+      "description": "The Time zone to set",
+      "type": 3,
+      "required": true,
+      "autocomplete": true
+    }
+  ]
+}
