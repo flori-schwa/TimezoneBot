@@ -15,6 +15,9 @@ import java.time.zone.ZoneRulesProvider;
 import java.util.List;
 
 public class SetTimezoneCommandHandler implements SlashCommandHandler {
+
+    private final List<String> _zoneIds = ZoneRulesProvider.getAvailableZoneIds().stream().sorted().toList();
+
     @Override
     public String getName() {
         return "settimezone";
@@ -51,9 +54,8 @@ public class SetTimezoneCommandHandler implements SlashCommandHandler {
 
         String typing = option.getValue().map(ApplicationCommandInteractionOptionValue::asString).orElseThrow();
 
-        List<ApplicationCommandOptionChoiceData> zones = ZoneRulesProvider.getAvailableZoneIds().stream() //
+        List<ApplicationCommandOptionChoiceData> zones = _zoneIds.stream() //
                 .filter(zoneId -> zoneId.startsWith(typing))
-                .sorted()
                 .limit(25)
                 .map(zoneId -> (ApplicationCommandOptionChoiceData) ApplicationCommandOptionChoiceData.builder().name(zoneId).value(zoneId).build())
                 .toList();
