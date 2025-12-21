@@ -2,13 +2,20 @@ package me.florian.tzbot;
 
 import com.novamaday.d4j.gradle.simplebot.GlobalCommandRegistrar;
 import discord4j.core.DiscordClient;
+import discord4j.core.event.domain.interaction.ButtonInteractionEvent;
 import discord4j.core.event.domain.interaction.ChatInputAutoCompleteEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
+import discord4j.core.object.component.ActionRow;
+import discord4j.core.object.component.Button;
+import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
+import discord4j.core.spec.EmbedCreateFields;
+import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.discordjson.json.MessageReferenceData;
 import discord4j.rest.util.AllowedMentions;
+import discord4j.rest.util.Permission;
 import me.florian.tzbot.commands.SlashCommandListener;
 import me.florian.tzbot.datemodel.ParsedDate;
 import org.natty.DateGroup;
@@ -23,8 +30,15 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class TimezoneBot {
+
+    private static final String DELETE_MESSAGE_BUTTON_ID_BASE = "delete-message";
+
+    private static final Pattern DELETE_MESSAGE_BUTTON_ID_PATTERN = Pattern.compile(DELETE_MESSAGE_BUTTON_ID_BASE + "_(?<authorid>\\d+)");
+
 
     static void main(String[] args) throws Exception {
         String token = System.getenv("BOT_TOKEN");
@@ -40,10 +54,11 @@ public class TimezoneBot {
                     }
 
                     Mono<?> respondToMessage = client.on(MessageCreateEvent.class, TimezoneBot::handleMessage).then();
+                    Mono<Void> respondToButtons = client.on(ButtonInteractionEvent.class, TimezoneBot::handleButton).then();
                     Mono<Void> respondToCommands = client.on(ChatInputInteractionEvent.class, SlashCommandListener::handle).then();
                     Mono<Void> respondToAutocomplete = client.on(ChatInputAutoCompleteEvent.class, SlashCommandListener::handleAutoComplete).then();
 
-                    return respondToMessage.and(respondToCommands).and(respondToAutocomplete);
+                    return respondToMessage.and(respondToButtons).and(respondToCommands).and(respondToAutocomplete);
                 }).block();
     }
 
@@ -69,20 +84,60 @@ public class TimezoneBot {
 
         if (!parsedDates.isEmpty()) {
             final MessageChannel channel = message.getChannel().block();
+            final Member messageAuthor = message.getAuthorAsMember().block();
 
-            ZonedDateTime messageDate = message.getTimestamp().atZone(userTimezone);
-            StringBuilder messageBuilder = new StringBuilder(String.format("Converting from %s:%n", timeZone.getDisplayName(Locale.ENGLISH)));
-
-            for (ParsedDate parsedDate : parsedDates) {
-                messageBuilder.append(String.format("%s -> %s", parsedDate.matchedText(), formatTimeStamp(parsedDate.instant(), messageDate)));
+            if (channel == null || messageAuthor == null) {
+                return Mono.empty();
             }
 
-            return channel.createMessage(messageBuilder.toString().trim())
+            final ZonedDateTime messageDate = message.getTimestamp().atZone(userTimezone);
+            final StringBuilder descriptionBuilder = new StringBuilder();
+
+            for (ParsedDate parsedDate : parsedDates) {
+                descriptionBuilder.append(String.format("%s -> %s%n", parsedDate.matchedText(), formatTimeStamp(parsedDate.instant(), messageDate)));
+            }
+
+            final EmbedCreateSpec embed = EmbedCreateSpec.builder()
+                    .author(EmbedCreateFields.Author.of(String.format("Converting from %s's timezone", messageAuthor.getDisplayName()), null, messageAuthor.getEffectiveAvatarUrl()))
+                    .description(descriptionBuilder.toString().trim())
+                    .addField("%s's timezone".formatted(messageAuthor.getDisplayName()), timeZone.getDisplayName(Locale.ENGLISH), true)
+                    .build();
+
+            Button deleteButton = Button.danger(DELETE_MESSAGE_BUTTON_ID_BASE + "_" + messageAuthor.getId().asLong(), "Delete");
+
+            return channel.createMessage(embed)
                     .withMessageReference(MessageReferenceData.builder().messageId(message.getId().asLong()).build())
+                    .withComponents(ActionRow.of(deleteButton))
                     .withAllowedMentions(AllowedMentions.suppressAll());
         } else {
             return Mono.<Void>empty();
         }
+    }
+
+    private static Mono<?> handleButton(ButtonInteractionEvent event) {
+        final Message message = event.getMessage().orElseThrow();
+        final Matcher matcher = DELETE_MESSAGE_BUTTON_ID_PATTERN.matcher(event.getCustomId());
+
+        if (!matcher.matches()) {
+            return Mono.empty();
+        }
+
+        final long authorId = Long.parseLong(matcher.group("authorid"));
+        String reason = "Requested by original message author";
+
+        if (authorId != event.getUser().getId().asLong()) {
+            final Member user = event.getUser().asMember(message.getGuildId().orElseThrow()).blockOptional().orElseThrow();
+
+            if (!user.getBasePermissions().blockOptional().orElseThrow().contains(Permission.MANAGE_MESSAGES)) {
+                return event.reply()
+                        .withContent("You do not have permission to delete this message!")
+                        .withEphemeral(true);
+            }
+
+            reason = "Deleted by Administrator";
+        }
+
+        return message.delete(reason);
     }
 
     private static String formatTimeStamp(Instant timeStamp, ZonedDateTime reference) {
