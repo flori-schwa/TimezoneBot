@@ -6,6 +6,7 @@ import discord4j.core.object.command.ApplicationCommandInteractionOption;
 import discord4j.core.object.command.ApplicationCommandInteractionOptionValue;
 import discord4j.discordjson.json.ApplicationCommandOptionChoiceData;
 import me.florian.tzbot.DatabaseAccess;
+import me.florian.tzbot.util.Trie;
 import reactor.core.publisher.Mono;
 
 import java.sql.SQLException;
@@ -13,10 +14,19 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.zone.ZoneRulesProvider;
 import java.util.List;
+import java.util.Locale;
 
 public class SetTimezoneCommandHandler implements SlashCommandHandler {
 
-    private final List<String> _zoneIds = ZoneRulesProvider.getAvailableZoneIds().stream().sorted().toList();
+    private final Trie<String> _zoneIdsTrie;
+
+    public SetTimezoneCommandHandler() {
+        _zoneIdsTrie = new Trie<>();
+
+        ZoneRulesProvider.getAvailableZoneIds().stream().sorted().forEachOrdered(zoneId -> {
+            _zoneIdsTrie.insert(zoneId.toLowerCase(Locale.ENGLISH), zoneId);
+        });
+    }
 
     @Override
     public String getName() {
@@ -54,12 +64,11 @@ public class SetTimezoneCommandHandler implements SlashCommandHandler {
 
         String typing = option.getValue().map(ApplicationCommandInteractionOptionValue::asString).orElseThrow();
 
-        List<ApplicationCommandOptionChoiceData> zones = _zoneIds.stream() //
-                .filter(zoneId -> zoneId.startsWith(typing))
-                .limit(25)
+        List<String> zones = _zoneIdsTrie.search(typing.toLowerCase(Locale.ENGLISH)).limit(25).toList();
+        List<ApplicationCommandOptionChoiceData> suggestions = zones.stream()
                 .map(zoneId -> (ApplicationCommandOptionChoiceData) ApplicationCommandOptionChoiceData.builder().name(zoneId).value(zoneId).build())
                 .toList();
 
-        return event.respondWithSuggestions(zones);
+        return event.respondWithSuggestions(suggestions);
     }
 }
