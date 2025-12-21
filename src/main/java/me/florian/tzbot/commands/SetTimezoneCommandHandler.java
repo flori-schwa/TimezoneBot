@@ -5,7 +5,7 @@ import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.object.command.ApplicationCommandInteractionOption;
 import discord4j.core.object.command.ApplicationCommandInteractionOptionValue;
 import discord4j.discordjson.json.ApplicationCommandOptionChoiceData;
-import me.florian.tzbot.UserTimezoneStore;
+import me.florian.tzbot.DatabaseAccess;
 import reactor.core.publisher.Mono;
 
 import java.sql.SQLException;
@@ -29,7 +29,7 @@ public class SetTimezoneCommandHandler implements SlashCommandHandler {
 
         try {
             final ZoneId zoneId = ZoneId.of(timezone);
-            boolean changed = UserTimezoneStore.saveUserTimezone(event.getUser().getId().asLong(), zoneId);
+            boolean changed = DatabaseAccess.saveUserTimezone(event.getUser().getId().asLong(), zoneId);
 
             if (!changed) {
                 return event.reply("Your timezone was already set to " + zoneId.getId()).withEphemeral(true);

@@ -43,7 +43,7 @@ public class TimezoneBot {
     static void main(String[] args) throws Exception {
         String token = System.getenv("BOT_TOKEN");
 
-        UserTimezoneStore.init();
+        DatabaseAccess.init();
 
         DiscordClient.create(token)
                 .withGateway(client -> {
@@ -69,7 +69,7 @@ public class TimezoneBot {
         final ZoneId userTimezone;
 
         try {
-            userTimezone = UserTimezoneStore.getUserZoneId(message.getUserData().id().asLong());
+            userTimezone = DatabaseAccess.getUserZoneId(message.getUserData().id().asLong());
         } catch (SQLException e) {
             e.printStackTrace(System.err);
             return Mono.empty();

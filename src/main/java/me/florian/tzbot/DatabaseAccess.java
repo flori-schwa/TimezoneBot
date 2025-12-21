@@ -6,13 +6,13 @@ import java.sql.*;
 import java.time.ZoneId;
 import java.util.concurrent.locks.StampedLock;
 
-public final class UserTimezoneStore {
+public final class DatabaseAccess {
 
     private static final StampedLock DB_LOCK = new StampedLock();
 
     private static final Cache<Long, ZoneId> CACHE = new Cache<>(1_000_000);
 
-    private UserTimezoneStore() {
+    private DatabaseAccess() {
 
     }
 
@@ -34,7 +34,7 @@ public final class UserTimezoneStore {
     }
 
     public static ZoneId getUserZoneId(long userId) throws SQLException {
-        return CACHE.computeIfAbsent(userId, UserTimezoneStore::readUserZoneIdFromDb);
+        return CACHE.computeIfAbsent(userId, DatabaseAccess::readUserZoneIdFromDb);
     }
 
     private static ZoneId readUserZoneIdFromDb(long userId) throws SQLException {
