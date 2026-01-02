@@ -126,7 +126,9 @@ public class TimezoneBot {
         String reason = "Requested by original message author";
 
         if (authorId != event.getUser().getId().asLong()) {
-            final Member user = event.getUser().asMember(message.getGuildId().orElseThrow()).blockOptional().orElseThrow();
+            final Member user = event.getUser().asMember(
+                    event.getInteraction().getGuildId().orElseThrow()
+            ).blockOptional().orElseThrow();
 
             if (!user.getBasePermissions().blockOptional().orElseThrow().contains(Permission.MANAGE_MESSAGES)) {
                 return event.reply()
