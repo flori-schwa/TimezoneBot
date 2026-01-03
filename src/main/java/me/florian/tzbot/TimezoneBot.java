@@ -5,6 +5,7 @@ import discord4j.core.DiscordClient;
 import discord4j.core.event.domain.interaction.ButtonInteractionEvent;
 import discord4j.core.event.domain.interaction.ChatInputAutoCompleteEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
+import discord4j.core.event.domain.interaction.UserInteractionEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
@@ -17,6 +18,7 @@ import discord4j.discordjson.json.MessageReferenceData;
 import discord4j.rest.util.AllowedMentions;
 import discord4j.rest.util.Permission;
 import me.florian.tzbot.commands.SlashCommandListener;
+import me.florian.tzbot.commands.UserCommandListener;
 import me.florian.tzbot.datemodel.ParsedDate;
 import org.natty.DateGroup;
 import org.natty.ParseLocation;
@@ -48,17 +50,22 @@ public class TimezoneBot {
         DiscordClient.create(token)
                 .withGateway(client -> {
                     try {
-                        new GlobalCommandRegistrar(client.getRestClient()).registerCommands(List.of("settimezone.json"));
+                        new GlobalCommandRegistrar(client.getRestClient()).registerCommands(List.of("settimezone.json", "gettime.json"));
                     } catch (IOException e) {
                         e.printStackTrace(System.err);
                     }
 
                     Mono<?> respondToMessage = client.on(MessageCreateEvent.class, TimezoneBot::handleMessage).then();
                     Mono<Void> respondToButtons = client.on(ButtonInteractionEvent.class, TimezoneBot::handleButton).then();
-                    Mono<Void> respondToCommands = client.on(ChatInputInteractionEvent.class, SlashCommandListener::handle).then();
+                    Mono<Void> respondToSlashCommands = client.on(ChatInputInteractionEvent.class, SlashCommandListener::handle).then();
                     Mono<Void> respondToAutocomplete = client.on(ChatInputAutoCompleteEvent.class, SlashCommandListener::handleAutoComplete).then();
+                    Mono<Void> respondToUserCommands = client.on(UserInteractionEvent.class, UserCommandListener::handle).then();
 
-                    return respondToMessage.and(respondToButtons).and(respondToCommands).and(respondToAutocomplete);
+                    return respondToMessage
+                            .and(respondToButtons)
+                            .and(respondToSlashCommands)
+                            .and(respondToAutocomplete)
+                            .and(respondToUserCommands);
                 }).block();
     }
 
