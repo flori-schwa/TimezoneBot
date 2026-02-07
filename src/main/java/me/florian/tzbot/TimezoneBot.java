@@ -21,7 +21,6 @@ import me.florian.tzbot.commands.SlashCommandListener;
 import me.florian.tzbot.commands.UserCommandListener;
 import me.florian.tzbot.datemodel.ParsedDate;
 import org.natty.DateGroup;
-import org.natty.ParseLocation;
 import org.natty.Parser;
 import reactor.core.publisher.Mono;
 
@@ -41,6 +40,7 @@ public class TimezoneBot {
 
     private static final Pattern DELETE_MESSAGE_BUTTON_ID_PATTERN = Pattern.compile(DELETE_MESSAGE_BUTTON_ID_BASE + "_(?<authorid>\\d+)");
 
+    private static final NattyFilter FILTER = new NattyFilter();
 
     static void main(String[] args) throws Exception {
         String token = System.getenv("BOT_TOKEN");
@@ -167,13 +167,11 @@ public class TimezoneBot {
         final List<ParsedDate> result = new ArrayList<>();
 
         for (DateGroup group : groups) {
-            String matchedText = group.getText();
-
-            final List<ParseLocation> matchedDateTimes = group.getParseLocations().getOrDefault("date_time", Collections.emptyList());
-
-            if (!matchedDateTimes.isEmpty() && matchedDateTimes.stream().allMatch(loc -> loc.getText().matches("\\d+"))) {
-                continue; // Edge case for natty detecting integers as dates...
+            if (FILTER.ignoreParseResult(group)) {
+                continue;
             }
+
+            String matchedText = group.getText();
 
             // TODO Handle Conjunctions and ranges (i.e. multiple Dates)
             List<Date> dates = group.getDates();
